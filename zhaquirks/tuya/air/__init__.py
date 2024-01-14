@@ -6,12 +6,17 @@ import zigpy.types as t
 from zigpy.zcl.clusters.measurement import (
     PM25,
     CarbonDioxideConcentration,
+    CarbonMonoxideConcentration,
     FormaldehydeConcentration,
     RelativeHumidity,
     TemperatureMeasurement,
 )
+from zigpy.zcl.clusters.security import IasZone
 
 from zhaquirks.tuya import DPToAttributeMapping, TuyaLocalCluster, TuyaNewManufCluster
+from zhaquirks.tuya.mcu import TuyaMCUCluster
+
+ZONE_TYPE = 0x0001
 
 
 class TuyaAirQualityVOC(TuyaLocalCluster):
@@ -76,8 +81,30 @@ class TuyaAirQualityCO2(CarbonDioxideConcentration, TuyaLocalCluster):
     """Tuya Carbon Dioxide concentration measurement."""
 
 
+class TuyaAirQualityCarbonMonoxide(CarbonMonoxideConcentration, TuyaLocalCluster):
+    """Tuya Carbon Monoxide concentration measurement."""
+
+
 class TuyaAirQualityFormaldehyde(FormaldehydeConcentration, TuyaLocalCluster):
     """Tuya Formaldehyde concentration measurement."""
+
+
+class TuyaAirQualityMethane(CarbonDioxideConcentration, TuyaLocalCluster):
+    """Tuya MethaneConcentration measurement."""
+
+
+class TuyaCarbonMonoxideDetectorZone(IasZone, TuyaLocalCluster):
+    """IAS Zone."""
+
+    _CONSTANT_ATTRIBUTES = {ZONE_TYPE: IasZone.ZoneType.Carbon_Monoxide_Sensor}
+
+
+class TuyaMethaneDetectorZone(IasZone, TuyaLocalCluster):
+    """IAS Zone."""
+
+    _CONSTANT_ATTRIBUTES = {
+        ZONE_TYPE: IasZone.ZoneType.Carbon_Monoxide_Sensor
+    }  # same type as used in TS0601_gas
 
 
 class TuyaCO2ManufCluster(TuyaNewManufCluster):
@@ -117,4 +144,37 @@ class TuyaCO2ManufCluster(TuyaNewManufCluster):
         20: "_dp_2_attr_update",
         21: "_dp_2_attr_update",
         22: "_dp_2_attr_update",
+    }
+
+
+class TuyaMethaneManufCluster(TuyaMCUCluster):
+    attributes = TuyaMCUCluster.attributes.copy()
+
+    dp_to_attribute: Dict[int, DPToAttributeMapping] = {
+        1: DPToAttributeMapping(
+            TuyaMethaneDetectorZone.ep_attribute,
+            "zone_status",
+            lambda x: IasZone.ZoneStatus.Alarm_1 if not x else 0,
+            endpoint_id=2,
+        ),
+        2: DPToAttributeMapping(
+            TuyaAirQualityMethane.ep_attribute, "measured_value", lambda x: x * 1e-5
+        ),
+        18: DPToAttributeMapping(
+            TuyaCarbonMonoxideDetectorZone.ep_attribute,
+            "zone_status",
+            lambda x: IasZone.ZoneStatus.Alarm_1 if not x else 0,
+        ),
+        19: DPToAttributeMapping(
+            TuyaAirQualityCarbonMonoxide.ep_attribute,
+            "measured_value",
+            lambda x: x * 1e-8,
+        ),
+    }
+
+    data_point_handlers = {
+        1: "_dp_2_attr_update",
+        2: "_dp_2_attr_update",
+        18: "_dp_2_attr_update",
+        19: "_dp_2_attr_update",
     }
